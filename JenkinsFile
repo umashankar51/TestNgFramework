@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+    environment{
+        POM_VERSION = readMavenPom().getVersion()
+    }
+    parameters {
+        string(name: 'environment', defaultValue: 'qa', description: 'Test Environment')
+        string(name: 'groups_included', defaultValue: 'regression', description: 'TestNg Excluded groups')
+        string(name: 'groups_excluded', defaultValue: 'broken', description: 'TestNg Included groups')
+        booleanParam(name: 'headless', defaultValue: true, description: 'Headless Mode Toggle')
+    }
+
+    stages {
+        stage('Run Tests') {
+            steps {
+                sh 'mvn clean package'
+                sh 'rm -rf allure-results'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo "Hello ${params.environment}"
+                sh "java -jar -Denv=${params.environment} -Dgroups_included=${params.groups_included} -Dgroups_excluded=${params.groups_excluded} -Dheadless=${params.headless} target/Uma-Shankar-${POM_VERSION}-jar-with-dependencies.jar"
+            }
+        }
+    }
+
+    post {
+        unsuccessful{
+            currentBuild.result = "failure"
+        }
+        always {
+            script {
+                allure([
+                        includeProperties: false,
+                        jdk: '',
+                        properties: [],
+                        reportBuildPolicy: 'ALWAYS',
+                        results: [[path: 'target/allure-results']]
+                ])
+            }
+        }
+    }
+}

@@ -1,0 +1,6 @@
+.git
+.idea
+target
+test-output
+allure-results
+chromedriver.exe

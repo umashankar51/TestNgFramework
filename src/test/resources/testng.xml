@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="TestNgSuite" parallel="classes" thread-count="10" configfailurepolicy="continue">
+    <listeners>
+        <listener class-name="listeners.TestNgCustomListener"/>
+    </listeners>
+    <test name="TestNgTests">
+         <classes>
+             <class name="tests.apiTests.GetAPITests"/>
+             <class name="tests.apiTests.PostAPITests"/>
+             <class name="tests.apiTests.PutAPITests"/>
+             <class name="tests.apiTests.PatchAPITests"/>
+             <class name="tests.apiTests.DeleteAPITests"/>
+             <class name="tests.uiTests.FileUploadTest"/>
+             <class name="tests.uiTests.HomePageTest"/>
+             <class name="tests.uiTests.SearchTest"/>
+         </classes>
+    </test>
+</suite>
