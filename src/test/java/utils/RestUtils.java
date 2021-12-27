@@ -87,9 +87,6 @@ public class RestUtils {
                                              String body,
                                              Map<String, String> headers,
                                              int expectedStatusCode) {
-        StepDetail.addDetail("Request Path :  " + path, true);
-        StepDetail.addDetail("Request Json :  " + body, true);
-        StepDetail.addDetail("Request Headers : " + body, true);
         LOGGER.info("Request Path : " + path);
         LOGGER.info("Request Json : " + body);
         LOGGER.info("Request Headers : " + headers);
@@ -114,8 +111,6 @@ public class RestUtils {
     }
 
     public static Response postRequestAndReturnResponse(String path, String body) {
-        StepDetail.addDetail("Request Path :  " + path, true);
-        StepDetail.addDetail("Request Json :  " + body, true);
         LOGGER.info("Request Path : " + path);
         LOGGER.info("Request Json : " + body);
         Response response = null;
@@ -133,8 +128,6 @@ public class RestUtils {
     }
 
     public static Response postRequestAndReturnResponse(String path, String body, ContentType contentType) {
-        StepDetail.addDetail("Request Path :  " + path, true);
-        StepDetail.addDetail("Request Json :  " + body, true);
         LOGGER.info("Request Path : " + path);
         LOGGER.info("Request Json : " + body);
         Response response = null;
@@ -152,8 +145,6 @@ public class RestUtils {
     }
 
     public static Response postRequestAndReturnResponse(String path, String bearerToken, String body, ContentType contentType) {
-        StepDetail.addDetail("Request Path :  " + path, true);
-        StepDetail.addDetail("Request Json :  " + body, true);
         LOGGER.info("Request Path : " + path);
         LOGGER.info("Request Json : " + body);
         Response response = null;

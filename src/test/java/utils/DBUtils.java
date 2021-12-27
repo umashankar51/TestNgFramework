@@ -20,6 +20,7 @@ public class DBUtils {
 				String password = ConfigUtils.getEnvVariable("db." + schema + ".password");
 				Class.forName(driver);
 				Connection conn = DriverManager.getConnection(uri, username, password);
+				LOGGER.info("###################### Connection Opened ######################");
 				connectionMap.put(schema, conn);
 			} catch (SQLException | ClassNotFoundException e) {
 				LOGGER.info(e);

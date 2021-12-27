@@ -17,6 +17,7 @@ public class BaseUITest extends BaseTest {
 
 	@BeforeClass(alwaysRun = true)
 	public void beforeChildClass() {
+		//
 		if(driver == null) {
 			ChromeOptions options = new ChromeOptions();
 			options.addArguments("start-maximized");
