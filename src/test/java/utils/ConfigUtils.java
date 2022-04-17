@@ -9,7 +9,7 @@ public class ConfigUtils {
     private static Properties testVariables;
 
     public static boolean loadTestConfig() {
-        try(InputStream is = ClassLoader.getSystemClassLoader().getResource("environment.properties").openStream()) {
+        try(InputStream is = ClassLoader.getSystemClassLoader().getResource("test.properties").openStream()) {
             testVariables = new Properties();
             testVariables.load(is);
             is.close();

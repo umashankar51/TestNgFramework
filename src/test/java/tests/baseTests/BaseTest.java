@@ -1,5 +1,6 @@
 package tests.baseTests;
 
+import extentUtils.ExtentManager;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.testng.Assert;
@@ -34,6 +35,7 @@ public class BaseTest {
 	@AfterMethod(alwaysRun = true)
 	public void afterParentMethod(final Method method, final ITestResult testResult){
 		LOGGER.info("Test Execution completed for Test - "+testResult.getMethod().getMethodName());
+		ExtentManager.extentReports.flush();
 	}
 
 	@AfterClass(alwaysRun = true)

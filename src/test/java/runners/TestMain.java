@@ -1,6 +1,5 @@
 package runners;
 
-import com.aventstack.extentreports.reporter.ExtentSparkReporter;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -14,10 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(JUnit4.class)
-public class TestRunner {
+public class TestMain {
 
-    @Test
-    public void runTestNgSuite(){
+    public static void main(String...args){
         // Custom TestNg runner using JUnit Test
         TestNG testNg = new TestNG();
         List<String> suites = new ArrayList<>();
@@ -26,7 +24,7 @@ public class TestRunner {
             suites.add(testNgPath);
         }else{
             try {
-                testNg.setTestJar(TestRunner.class
+                testNg.setTestJar(TestMain.class
                         .getProtectionDomain()
                         .getCodeSource()
                         .getLocation()
@@ -45,7 +43,7 @@ public class TestRunner {
         testNg.setExcludedGroups(ConfigUtils.getTestVariable("groups_excluded"));
         try{
             testNg.run();
-        }catch (Exception e){
+        }catch (Throwable e){
             e.printStackTrace();
         }
     }

@@ -2,7 +2,8 @@
 <!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
 <suite name="TestNgSuite" parallel="classes" thread-count="10" configfailurepolicy="continue">
     <listeners>
-        <listener class-name="listeners.TestNgCustomListener"/>
+<!--        <listener class-name="listeners.TestNgCustomListener"/>-->
+        <listener class-name="listeners.TestReportListener"/>
     </listeners>
     <test name="TestNgTests">
          <classes>
@@ -14,6 +15,7 @@
              <class name="tests.uiTests.FileUploadTest"/>
              <class name="tests.uiTests.HomePageTest"/>
              <class name="tests.uiTests.SearchTest"/>
+             <class name="tests.uiTests.EllipsisTest"/>
          </classes>
     </test>
 </suite>
