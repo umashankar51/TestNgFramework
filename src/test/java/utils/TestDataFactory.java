@@ -18,9 +18,10 @@ public class TestDataFactory {
     public static void loadTestData(){
         try {
             String fileContent = "";
+            System.out.println(ConfigUtils.getTestVariable("testenv"));
             InputStream in = Thread.currentThread()
                     .getContextClassLoader()
-                    .getResource("testdata/"+ConfigUtils.getTestVariable("env")+"Data.json")
+                    .getResource("testdata/"+ConfigUtils.getTestVariable("testenv")+"Data.json")
                     .openStream();
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             String line;

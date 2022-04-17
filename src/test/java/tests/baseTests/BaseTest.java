@@ -17,6 +17,8 @@ public class BaseTest {
 
 	@BeforeSuite(alwaysRun = true)
 	public void beforeSuite(){
+		Assert.assertTrue(ConfigUtils.loadTestConfig(),
+				"Asserting if Test Properties are loaded");
 		Assert.assertTrue(ConfigUtils.loadEnvConfig(),
 				"Asserting if Environment Properties are loaded");
 		TestDataFactory.loadTestData();

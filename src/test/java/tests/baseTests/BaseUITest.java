@@ -69,7 +69,7 @@ public class BaseUITest extends BaseTest {
 		try {
 			if (result.getStatus() == ITestResult.FAILURE) {
 				String base64Screenshot =
-						"data:image/png;Screenshot," + ((TakesScreenshot) (driver)).getScreenshotAs(OutputType.BASE64);
+						"data:image/png;base64," + ((TakesScreenshot) (driver)).getScreenshotAs(OutputType.BASE64);
 				ExtentTestManager.getTest().addScreenCaptureFromBase64String(base64Screenshot).getModel().getMedia().get(0);
 			}
 		}catch (Throwable t){

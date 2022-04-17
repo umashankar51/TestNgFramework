@@ -16,7 +16,14 @@ public class HomePageTest extends BaseUITest {
     }
 
     @Test(groups= {"menuOptionsTest","regression","uiTests"})
-    public void tc_p1_validate_HomePage_test(){
+    public void tc_p1_validate_HomePage_test_1(){
+        driver.get(ConfigUtils.getEnvVariable("UI_HOME"));
+        homePage.validateMenuBarElements();
+        homePage.validateHomePageLabel();
+    }
+
+    @Test(groups= {"menuOptionsTest","regression","uiTests", "broken"})
+    public void tc_p1_validate_HomePage_test_2(){
         driver.get(ConfigUtils.getEnvVariable("UI_HOME"));
         homePage.validateMenuBarElements();
         homePage.validateHomePageLabel();

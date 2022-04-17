@@ -1,0 +1,31 @@
+{
+  "validUserID" : 2,
+  "invalidUserID" : 23,
+  "menuOptions": [
+    "Desktops",
+    "Laptops & Notebooks",
+    "Components",
+    "Tablets",
+    "Software",
+    "Phones & PDAs",
+    "Cameras",
+    "MP3 Players"
+  ],
+  "subMenuOptions": {
+    "Desktops": [
+      "PC",
+      "Mac"
+    ]
+  },
+  "searchItem" : {
+    "noSearchItem": {
+      "name": "Google"
+    },
+    "item1": {
+      "name": "iMac",
+      "description": "Just when you thought iMac had everything, now there´s even more. More powerful Intel Core 2 Duo pro..",
+      "price": "$122.00",
+      "tax": "Ex Tax: $100.00"
+    }
+  }
+}

@@ -31,7 +31,7 @@ public class ConfigUtils {
     }
 
     public static boolean loadEnvConfig() {
-        try(InputStream is = ClassLoader.getSystemClassLoader().getResource("configs/"+getTestVariable("env")
+        try(InputStream is = ClassLoader.getSystemClassLoader().getResource("envConfigs/" +getTestVariable("testenv")
                 +".properties").openStream()) {
             envVariables = new Properties();
             envVariables.load(is);

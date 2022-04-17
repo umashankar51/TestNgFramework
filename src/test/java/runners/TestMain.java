@@ -44,7 +44,7 @@ public class TestMain {
         try{
             testNg.run();
         }catch (Throwable e){
-            e.printStackTrace();
+            e.printStackTrace(System.out);
         }
     }
 }
