@@ -1,0 +1,1 @@
+﻿var __testDataSource={items:[{dataFilePath:'Default.xlsx',dataFileFormat:'excel',dataFileFolder:'C:\\Users\\pumas\\Documents\\Projects\\TestNgFramework\\uft\\GUITest1\\Report',namePairs:[]}]};
