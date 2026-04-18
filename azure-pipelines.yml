@@ -1,22 +1,70 @@
-# Maven
-# Build your Java project and run tests with Apache Maven.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+# Mobile Test Automation — Azure Pipelines
+# Runs TestNG suite on BrowserStack, publishes results, sends email via SendGrid
 
 trigger:
-- main
+  - main
 
 pool:
   vmImage: ubuntu-latest
 
+parameters:
+  - name: xrayExecutionKey
+    displayName: 'Xray Test Execution Key (leave blank to auto-create)'
+    type: string
+    default: ''
+
+variables:
+  - group: sendgrid-secrets   # pipeline variable group: SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, SENDGRID_TO_EMAILS
+  - group: browserstack-creds # pipeline variable group: bs_username, bs_accessKey
+  - group: xray-secrets       # pipeline variable group: XRAY_CLIENT_ID, XRAY_CLIENT_SECRET, JIRA_EMAIL, JIRA_API_TOKEN
+
 steps:
-- task: Maven@3
-  inputs:
-    mavenPomFile: 'pom.xml'
-    mavenOptions: '-Xmx3072m'
-    javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '1.8'
-    jdkArchitectureOption: 'x64'
-    publishJUnitResults: true
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    goals: 'package'
+
+  # ── Run Tests ──────────────────────────────────────────────────────────────
+  - task: Maven@3
+    displayName: 'Run TestNG Suite'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      mavenOptions: '-Xmx3072m'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '21'
+      jdkArchitectureOption: 'x64'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      goals: 'clean test'
+    env:
+      # BrowserStack
+      bs_username:  $(bs_username)
+      bs_accessKey: $(bs_accessKey)
+      # SendGrid — read by EmailReportListener
+      SENDGRID_API_KEY:    $(SENDGRID_API_KEY)
+      SENDGRID_FROM_EMAIL: $(SENDGRID_FROM_EMAIL)
+      SENDGRID_TO_EMAILS:  $(SENDGRID_TO_EMAILS)
+      # Azure Build context — read by EmailReportListener & XrayUtils
+      BUILD_BUILDID: $(Build.BuildId)
+      BUILD_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)
+      # Xray / Jira — read by XrayUtils
+      XRAY_CLIENT_ID:     $(XRAY_CLIENT_ID)
+      XRAY_CLIENT_SECRET: $(XRAY_CLIENT_SECRET)
+      JIRA_EMAIL:         $(JIRA_EMAIL)
+      JIRA_API_TOKEN:     $(JIRA_API_TOKEN)
+      JIRA_BASE_URL:      $(jira_base_url)
+      XRAY_PROJECT_KEY:   $(xray_project_key)
+      XRAY_EXECUTION_KEY: ${{ parameters.xrayExecutionKey }}
+      XRAY_CREATE_NEW:    ${{ eq(parameters.xrayExecutionKey, '') }}
+
+  # ── Publish Extent HTML Report ─────────────────────────────────────────────
+  - task: PublishHtmlReport@1
+    displayName: 'Publish Extent Report'
+    condition: always()
+    inputs:
+      reportDir: '$(System.DefaultWorkingDirectory)'
+      tabName: 'Extent Report'
+
+  # ── Publish Allure Results ─────────────────────────────────────────────────
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Allure Results'
+    condition: always()
+    inputs:
+      pathToPublish: '$(System.DefaultWorkingDirectory)/target/allure-results'
+      artifactName: 'allure-results'

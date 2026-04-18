@@ -1,14 +1,13 @@
 package utils;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.sql.*;
 import java.util.*;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-
+@Slf4j
 public class DBUtils {
 
-	private static final Logger LOGGER = LogManager.getLogger(DBUtils.class);
 	private static Map<String, Connection> connectionMap = new HashMap<String, Connection>();
 
 	private static Connection getDBConnection(String schema) throws Exception {
@@ -16,17 +15,17 @@ public class DBUtils {
 			try {
 				String driver = ConfigUtils.getEnvVariable("db.driver.classname");
 				String uri = ConfigUtils.getEnvVariable("db." + schema + ".connecturi");
-				String username =ConfigUtils.getEnvVariable("db." + schema + ".name");
+				String username = ConfigUtils.getEnvVariable("db." + schema + ".name");
 				String password = ConfigUtils.getEnvVariable("db." + schema + ".password");
 				Class.forName(driver);
 				Connection conn = DriverManager.getConnection(uri, username, password);
-				LOGGER.info("###################### Connection Opened ######################");
+				log.info("###################### Connection Opened ######################");
 				connectionMap.put(schema, conn);
 			} catch (SQLException | ClassNotFoundException e) {
-				LOGGER.info(e);
+				log.info("{}", e);
 			}
 		} else {
-			LOGGER.info("Connection is already established ... ");
+			log.info("Connection is already established ... ");
 		}
 		return connectionMap.get(schema);
 	}
@@ -35,22 +34,21 @@ public class DBUtils {
 		try {
 			if (connectionMap.get(schema) != null && !connectionMap.get(schema).isClosed()) {
 				connectionMap.get(schema).close();
-				LOGGER.info("###################### Connection Closed ######################");
+				log.info("###################### Connection Closed ######################");
 			}
-
 		} catch (SQLException se) {
-			LOGGER.error(se);
+			log.error("{}", se);
 		}
 	}
 
 	public static void closeAllConnections() {
-		LOGGER.info("Closing DB Connections ... ");
+		log.info("Closing DB Connections ... ");
 		connectionMap.forEach((schema, conn) -> {
 			try {
-				LOGGER.info("Schema : " + schema + " Connection : " + conn);
+				log.info("Schema : {} Connection : {}", schema, conn);
 				conn.close();
 			} catch (Exception e) {
-				LOGGER.info(e.getMessage());
+				log.info(e.getMessage());
 			}
 		});
 	}
@@ -59,7 +57,7 @@ public class DBUtils {
 		List<String> dbValues = new ArrayList<String>();
 		try {
 			Connection connection = getDBConnection(schema);
-			LOGGER.info("Query: " + query);
+			log.info("Query: {}", query);
 			PreparedStatement sqlStatement = connection.prepareStatement(query);
 			ResultSet resultSet = sqlStatement.executeQuery();
 			while (resultSet.next()) {
@@ -68,7 +66,7 @@ public class DBUtils {
 			}
 			resultSet.close();
 		} catch (SQLException exception) {
-			LOGGER.info("Exception in Result set :" + exception.getMessage());
+			log.info("Exception in Result set : {}", exception.getMessage());
 		}
 		return dbValues;
 	}
