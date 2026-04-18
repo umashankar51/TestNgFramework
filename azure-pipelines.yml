@@ -1,26 +1,89 @@
 # Mobile Test Automation — Azure Pipelines
-# Runs TestNG suite on BrowserStack, publishes results, sends email via SendGrid
+# Runs TestNG suite, publishes Extent report, sends email via SendGrid
 
-trigger:
-  - main
-
-pool:
-  vmImage: ubuntu-latest
+trigger: none
 
 parameters:
-  - name: xrayExecutionKey
-    displayName: 'Xray Test Execution Key (leave blank to auto-create)'
+
+  - name: environment
+    displayName: 'Environment'
+    type: string
+    default: 'qa'
+    values:
+      - qa
+      - staging
+      - prod
+
+  - name: agentPool
+    displayName: 'Run On Agent'
+    type: string
+    default: 'ubuntu-latest'
+    values:
+      - ubuntu-latest
+      - windows-latest
+      - macos-latest
+      - Self-Hosted-Linux
+      - Self-Hosted-Windows
+
+  - name: groups
+    displayName: 'Include Group'
+    type: string
+    default: 'regression'
+    values:
+      - regression
+      - smoke
+      - iOS
+      - android
+
+  - name: excludedGroups
+    displayName: 'Exclude Group (select none to skip)'
+    type: string
+    default: 'none'
+    values:
+      - none
+      - invalid
+      - defect
+
+  - name: emailFrom
+    displayName: 'From Email'
+    type: string
+    default: 'automation@yourcompany.com'
+
+  - name: emailTo
+    displayName: 'To Emails (comma-separated)'
+    type: string
+    default: 'qa-team@yourcompany.com'
+
+  - name: emailCC
+    displayName: 'CC Emails (comma-separated, leave blank for none)'
     type: string
     default: ''
 
 variables:
-  - group: sendgrid-secrets   # pipeline variable group: SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, SENDGRID_TO_EMAILS
-  - group: browserstack-creds # pipeline variable group: bs_username, bs_accessKey
-  - group: xray-secrets       # pipeline variable group: XRAY_CLIENT_ID, XRAY_CLIENT_SECRET, JIRA_EMAIL, JIRA_API_TOKEN
+  - group: sendgrid-secrets
+
+pool:
+  vmImage: ${{ parameters.agentPool }}
 
 steps:
 
-  # ── Run Tests ──────────────────────────────────────────────────────────────
+  - task: PowerShell@2
+    displayName: 'Resolve Test Groups'
+    inputs:
+      targetType: inline
+      script: |
+        $groupsStr   = '${{ parameters.groups }}'
+        $excludedRaw = '${{ parameters.excludedGroups }}'
+        $excludedStr = if ($excludedRaw -eq 'none') { '' } else { $excludedRaw }
+
+        Write-Host "##vso[task.setvariable variable=MAVEN_GROUPS]$groupsStr"
+        Write-Host "##vso[task.setvariable variable=MAVEN_EXCLUDED]$excludedStr"
+
+        Write-Host "Environment    : ${{ parameters.environment }}"
+        Write-Host "Agent Pool     : ${{ parameters.agentPool }}"
+        Write-Host "Groups         : $groupsStr"
+        Write-Host "Excluded Groups: $(if ($excludedStr -eq '') { '(none)' } else { $excludedStr })"
+
   - task: Maven@3
     displayName: 'Run TestNG Suite'
     inputs:
@@ -31,29 +94,8 @@ steps:
       jdkArchitectureOption: 'x64'
       publishJUnitResults: true
       testResultsFiles: '**/surefire-reports/TEST-*.xml'
-      goals: 'clean test'
-    env:
-      # BrowserStack
-      bs_username:  $(bs_username)
-      bs_accessKey: $(bs_accessKey)
-      # SendGrid — read by EmailReportListener
-      SENDGRID_API_KEY:    $(SENDGRID_API_KEY)
-      SENDGRID_FROM_EMAIL: $(SENDGRID_FROM_EMAIL)
-      SENDGRID_TO_EMAILS:  $(SENDGRID_TO_EMAILS)
-      # Azure Build context — read by EmailReportListener & XrayUtils
-      BUILD_BUILDID: $(Build.BuildId)
-      BUILD_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)
-      # Xray / Jira — read by XrayUtils
-      XRAY_CLIENT_ID:     $(XRAY_CLIENT_ID)
-      XRAY_CLIENT_SECRET: $(XRAY_CLIENT_SECRET)
-      JIRA_EMAIL:         $(JIRA_EMAIL)
-      JIRA_API_TOKEN:     $(JIRA_API_TOKEN)
-      JIRA_BASE_URL:      $(jira_base_url)
-      XRAY_PROJECT_KEY:   $(xray_project_key)
-      XRAY_EXECUTION_KEY: ${{ parameters.xrayExecutionKey }}
-      XRAY_CREATE_NEW:    ${{ eq(parameters.xrayExecutionKey, '') }}
+      goals: 'clean test -Denv=${{ parameters.environment }} -Dgroups=$(MAVEN_GROUPS) -DexcludedGroups=$(MAVEN_EXCLUDED)'
 
-  # ── Publish Extent HTML Report ─────────────────────────────────────────────
   - task: PublishHtmlReport@1
     displayName: 'Publish Extent Report'
     condition: always()
@@ -61,10 +103,77 @@ steps:
       reportDir: '$(System.DefaultWorkingDirectory)'
       tabName: 'Extent Report'
 
-  # ── Publish Allure Results ─────────────────────────────────────────────────
   - task: PublishBuildArtifacts@1
     displayName: 'Publish Allure Results'
     condition: always()
     inputs:
       pathToPublish: '$(System.DefaultWorkingDirectory)/target/allure-results'
       artifactName: 'allure-results'
+
+  - task: PowerShell@2
+    displayName: 'Send Report Email (SendGrid)'
+    condition: always()
+    env:
+      SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+    inputs:
+      targetType: inline
+      script: |
+        $reportFiles = Get-ChildItem -Path "$(System.DefaultWorkingDirectory)/test-output/extent-reports" `
+                                     -Filter "*.html" -Recurse -ErrorAction SilentlyContinue |
+                       Sort-Object LastWriteTime -Descending
+
+        if ($reportFiles.Count -gt 0) {
+            $reportPath = $reportFiles[0].FullName
+            Write-Host "Using report: $reportPath"
+            $htmlBody = Get-Content -Path $reportPath -Raw -Encoding UTF8
+        } else {
+            Write-Warning "No Extent HTML report found - sending fallback email."
+            $htmlBody = "<h2>Test Execution Report</h2><p>No HTML report was generated. Please check pipeline logs.</p><ul><li><b>Build ID:</b> $(Build.BuildId)</li><li><b>Environment:</b> ${{ parameters.environment }}</li><li><b>Groups:</b> $(MAVEN_GROUPS)</li><li><b>Excluded:</b> $(MAVEN_EXCLUDED)</li></ul>"
+        }
+
+        function ConvertTo-EmailList([string]$raw) {
+            return ($raw.Split(',') |
+                    ForEach-Object { $_.Trim() } |
+                    Where-Object   { $_ -ne ''  } |
+                    ForEach-Object { @{ email = $_ } })
+        }
+
+        $toList = ConvertTo-EmailList '${{ parameters.emailTo }}'
+        $ccList = ConvertTo-EmailList '${{ parameters.emailCC }}'
+
+        if ($toList.Count -eq 0) {
+            Write-Error "No To email addresses provided."
+            exit 1
+        }
+
+        $subject = "[${{ parameters.environment }}] Test Report - Build $(Build.BuildId) | Groups: $(MAVEN_GROUPS)"
+
+        $personalization = @{ to = $toList; subject = $subject }
+        if ($ccList.Count -gt 0) { $personalization['cc'] = $ccList }
+
+        $payload = @{
+            personalizations = @($personalization)
+            from             = @{ email = '${{ parameters.emailFrom }}'; name = 'Azure Test Automation' }
+            subject          = $subject
+            content          = @(@{ type = 'text/html'; value = $htmlBody })
+        } | ConvertTo-Json -Depth 10
+
+        $headers = @{
+            'Authorization' = "Bearer $env:SENDGRID_API_KEY"
+            'Content-Type'  = 'application/json'
+        }
+
+        try {
+            Invoke-RestMethod -Uri 'https://api.sendgrid.com/v3/mail/send' `
+                              -Method POST -Headers $headers -Body $payload
+            Write-Host "Email sent successfully!"
+            Write-Host "To  : ${{ parameters.emailTo }}"
+            Write-Host "CC  : ${{ parameters.emailCC }}"
+            Write-Host "From: ${{ parameters.emailFrom }}"
+        }
+        catch {
+            $statusCode = $_.Exception.Response.StatusCode.value__
+            $errBody    = $_.ErrorDetails.Message
+            Write-Error "SendGrid failed. Status: $statusCode - $errBody"
+            exit 1
+        }
