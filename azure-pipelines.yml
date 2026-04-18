@@ -35,29 +35,32 @@ parameters:
       - iOS
       - android
 
-  - name: excludedGroups
-    displayName: 'Exclude Group (select none to skip)'
-    type: string
-    default: 'none'
-    values:
-      - none
-      - invalid
-      - defect
+  # ── Exclude Groups (checkboxes) ───────────────────────────────────────────
+  - name: excludeInvalid
+    displayName: 'Exclude: invalid'
+    type: boolean
+    default: true
 
+  - name: excludeDefect
+    displayName: 'Exclude: defect'
+    type: boolean
+    default: false
+
+  # ── Email ─────────────────────────────────────────────────────────────────
   - name: emailFrom
     displayName: 'From Email'
     type: string
-    default: 'automation@yourcompany.com'
+    default: 'p.umashankar51@gmail.com'
 
   - name: emailTo
     displayName: 'To Emails (comma-separated)'
     type: string
-    default: 'qa-team@yourcompany.com'
+    default: 'p.umashankar51w@gmail.com'
 
   - name: emailCC
     displayName: 'CC Emails (comma-separated, leave blank for none)'
     type: string
-    default: ''
+    default: 'p.umashankar51h@gmail.com'
 
 variables:
   - group: sendgrid-secrets
@@ -65,16 +68,21 @@ variables:
 pool:
   vmImage: ${{ parameters.agentPool }}
 
+
 steps:
+
 
   - task: PowerShell@2
     displayName: 'Resolve Test Groups'
     inputs:
       targetType: inline
       script: |
-        $groupsStr   = '${{ parameters.groups }}'
-        $excludedRaw = '${{ parameters.excludedGroups }}'
-        $excludedStr = if ($excludedRaw -eq 'none') { '' } else { $excludedRaw }
+        $groupsStr = '${{ parameters.groups }}'
+
+        $excluded = @()
+        if ('${{ parameters.excludeInvalid }}' -eq 'True') { $excluded += 'invalid' }
+        if ('${{ parameters.excludeDefect }}'  -eq 'True') { $excluded += 'defect'  }
+        $excludedStr = $excluded -join ','
 
         Write-Host "##vso[task.setvariable variable=MAVEN_GROUPS]$groupsStr"
         Write-Host "##vso[task.setvariable variable=MAVEN_EXCLUDED]$excludedStr"
