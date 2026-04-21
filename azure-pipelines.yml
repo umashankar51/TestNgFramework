@@ -260,11 +260,12 @@ stages:
                 $h += "</tr></table></div></div></body></html>"
 
                 function ConvertTo-EmailList([string]$raw) {
-                    return ($raw.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" } | ForEach-Object { @{ email = $_ } })
+                    $list = @($raw.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" } | ForEach-Object { @{ email = $_ } })
+                    return ,$list
                 }
 
-                $toList = ConvertTo-EmailList "$(PARAM_EMAIL_TO)"
-                $ccList = ConvertTo-EmailList "$(PARAM_EMAIL_CC)"
+                $toList = @(ConvertTo-EmailList "$(PARAM_EMAIL_TO)")
+                $ccList = @(ConvertTo-EmailList "$(PARAM_EMAIL_CC)")
 
                 if ($toList.Count -eq 0) { Write-Error "No To email addresses provided."; exit 1 }
 
