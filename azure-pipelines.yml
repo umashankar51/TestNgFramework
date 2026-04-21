@@ -50,7 +50,8 @@ parameters:
     default: ''
 
 variables:
-  - group: sendgrid-secrets
+  - name: SENDGRID_API_KEY
+    value: $(sg)
   - name: PARAM_ENVIRONMENT
     value: ${{ parameters.environment }}
   - name: PARAM_GROUPS
@@ -287,4 +288,5 @@ stages:
                 catch {
                     Write-Error "SendGrid failed. Status: $($_.Exception.Response.StatusCode.value__) - $($_.ErrorDetails.Message)"
                     exit 1
+                }
                 }
