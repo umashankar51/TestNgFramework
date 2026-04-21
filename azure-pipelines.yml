@@ -1,5 +1,5 @@
 # Mobile Test Automation — Azure Pipelines
-# Runs TestNG suite, publishes Extent report, sends email via SendGrid
+# Stage 1: RunTests | Stage 2: PublishReports | Stage 3: Notify
 
 trigger: none
 
@@ -8,22 +8,10 @@ parameters:
   - name: environment
     displayName: 'Environment'
     type: string
-    default: 'qa'
+    default: 'QA1'
     values:
-      - qa
-      - staging
-      - prod
-
-  - name: agentPool
-    displayName: 'Run On Agent'
-    type: string
-    default: 'ubuntu-latest'
-    values:
-      - ubuntu-latest
-      - windows-latest
-      - macos-latest
-      - Self-Hosted-Linux
-      - Self-Hosted-Windows
+      - QA1
+      - UAT
 
   - name: groups
     displayName: 'Include Group'
@@ -33,9 +21,9 @@ parameters:
       - regression
       - smoke
       - iOS
-      - android
+      - sample
+      - Android
 
-  # ── Exclude Groups (checkboxes) ───────────────────────────────────────────
   - name: excludeInvalid
     displayName: 'Exclude: invalid'
     type: boolean
@@ -46,142 +34,257 @@ parameters:
     type: boolean
     default: false
 
-  # ── Email ─────────────────────────────────────────────────────────────────
   - name: emailFrom
     displayName: 'From Email'
     type: string
-    default: 'p.umashankar51@gmail.com'
+    default: 'automation@yourcompany.com'
 
   - name: emailTo
     displayName: 'To Emails (comma-separated)'
     type: string
-    default: 'p.umashankar51w@gmail.com'
+    default: 'qa-team@yourcompany.com'
 
   - name: emailCC
     displayName: 'CC Emails (comma-separated, leave blank for none)'
     type: string
-    default: 'p.umashankar51h@gmail.com'
+    default: ''
 
 variables:
   - group: sendgrid-secrets
+  - name: PARAM_ENVIRONMENT
+    value: ${{ parameters.environment }}
+  - name: PARAM_GROUPS
+    value: ${{ parameters.groups }}
+  - name: PARAM_EXCLUDE_INVALID
+    value: ${{ parameters.excludeInvalid }}
+  - name: PARAM_EXCLUDE_DEFECT
+    value: ${{ parameters.excludeDefect }}
+  - name: PARAM_EMAIL_FROM
+    value: ${{ parameters.emailFrom }}
+  - name: PARAM_EMAIL_TO
+    value: ${{ parameters.emailTo }}
+  - name: PARAM_EMAIL_CC
+    value: ${{ parameters.emailCC }}
 
-pool:
-  vmImage: ${{ parameters.agentPool }}
+stages:
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STAGE 1 — Run Tests
+  # ─────────────────────────────────────────────────────────────────────────────
+  - stage: RunTests
+    displayName: 'Stage 1 - Run Tests'
+    jobs:
+      - job: ExecuteTestSuite
+        displayName: 'Execute Maven TestNG Suite'
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            displayName: 'Clone Repository'
+            clean: true
+            fetchDepth: 1
 
-steps:
+          - task: PowerShell@2
+            displayName: 'Identify Agent'
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Agent Name    : $(Agent.Name)"
+                Write-Host "Agent OS      : $(Agent.OS)"
+                Write-Host "Agent Machine : $(Agent.MachineName)"
+                Write-Host "Branch        : $(Build.SourceBranchName)"
+                Write-Host "Build ID      : $(Build.BuildId)"
+                Write-Host "Environment   : $(PARAM_ENVIRONMENT)"
 
+          - task: PowerShell@2
+            displayName: 'Resolve Test Groups'
+            inputs:
+              targetType: inline
+              script: |
+                $groupsStr = '$(PARAM_GROUPS)'
+                $excluded = @()
+                if ('$(PARAM_EXCLUDE_INVALID)' -eq 'True') { $excluded += 'invalid' }
+                if ('$(PARAM_EXCLUDE_DEFECT)'  -eq 'True') { $excluded += 'defect'  }
+                $excludedStr = $excluded -join ','
+                Write-Host "##vso[task.setvariable variable=MAVEN_GROUPS]$groupsStr"
+                Write-Host "##vso[task.setvariable variable=MAVEN_EXCLUDED]$excludedStr"
+                Write-Host "Groups         : $groupsStr"
+                Write-Host "Excluded Groups: $(if ($excludedStr -eq '') { '(none)' } else { $excludedStr })"
 
-  - task: PowerShell@2
-    displayName: 'Resolve Test Groups'
-    inputs:
-      targetType: inline
-      script: |
-        $groupsStr = '${{ parameters.groups }}'
+          - task: Maven@3
+            displayName: 'Run TestNG Suite'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              mavenOptions: '-Xmx3072m'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '21'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              goals: 'clean test -Denv=$(PARAM_ENVIRONMENT) -Dgroups=$(MAVEN_GROUPS) -DexcludedGroups=$(MAVEN_EXCLUDED)'
 
-        $excluded = @()
-        if ('${{ parameters.excludeInvalid }}' -eq 'True') { $excluded += 'invalid' }
-        if ('${{ parameters.excludeDefect }}'  -eq 'True') { $excluded += 'defect'  }
-        $excludedStr = $excluded -join ','
+          - task: PublishBuildArtifacts@1
+            displayName: 'Upload Extent Report'
+            condition: always()
+            inputs:
+              pathToPublish: '$(System.DefaultWorkingDirectory)/test-output/extent-reports'
+              artifactName: 'extent-report'
 
-        Write-Host "##vso[task.setvariable variable=MAVEN_GROUPS]$groupsStr"
-        Write-Host "##vso[task.setvariable variable=MAVEN_EXCLUDED]$excludedStr"
+          - task: PublishBuildArtifacts@1
+            displayName: 'Upload Allure Results'
+            condition: always()
+            inputs:
+              pathToPublish: '$(System.DefaultWorkingDirectory)/target/allure-results'
+              artifactName: 'allure-results'
 
-        Write-Host "Environment    : ${{ parameters.environment }}"
-        Write-Host "Agent Pool     : ${{ parameters.agentPool }}"
-        Write-Host "Groups         : $groupsStr"
-        Write-Host "Excluded Groups: $(if ($excludedStr -eq '') { '(none)' } else { $excludedStr })"
-
-  - task: Maven@3
-    displayName: 'Run TestNG Suite'
-    inputs:
-      mavenPomFile: 'pom.xml'
-      mavenOptions: '-Xmx3072m'
-      javaHomeOption: 'JDKVersion'
-      jdkVersionOption: '21'
-      jdkArchitectureOption: 'x64'
-      publishJUnitResults: true
-      testResultsFiles: '**/surefire-reports/TEST-*.xml'
-      goals: 'clean test -Denv=${{ parameters.environment }} -Dgroups=$(MAVEN_GROUPS) -DexcludedGroups=$(MAVEN_EXCLUDED)'
-
-  - task: PublishHtmlReport@1
-    displayName: 'Publish Extent Report'
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STAGE 2 — Publish Reports
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STAGE 3 — Notify
+  # ─────────────────────────────────────────────────────────────────────────────
+  - stage: Notify
+    displayName: 'Stage 3 - Send Email Notification'
+    dependsOn: RunTests
     condition: always()
-    inputs:
-      reportDir: '$(System.DefaultWorkingDirectory)'
-      tabName: 'Extent Report'
+    jobs:
+      - job: SendEmail
+        displayName: 'Send SendGrid Email'
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - download: current
+            artifact: extent-report
+            displayName: 'Download Extent Report'
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Allure Results'
-    condition: always()
-    inputs:
-      pathToPublish: '$(System.DefaultWorkingDirectory)/target/allure-results'
-      artifactName: 'allure-results'
+          - task: PowerShell@2
+            displayName: 'Send Report Email (SendGrid)'
+            env:
+              SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+            inputs:
+              targetType: inline
+              script: |
+                $reportFiles = Get-ChildItem -Path "$(Pipeline.Workspace)/extent-report" `
+                                             -Filter "*.html" -Recurse -ErrorAction SilentlyContinue |
+                               Sort-Object LastWriteTime -Descending
 
-  - task: PowerShell@2
-    displayName: 'Send Report Email (SendGrid)'
-    condition: always()
-    env:
-      SENDGRID_API_KEY: $(SENDGRID_API_KEY)
-    inputs:
-      targetType: inline
-      script: |
-        $reportFiles = Get-ChildItem -Path "$(System.DefaultWorkingDirectory)/test-output/extent-reports" `
-                                     -Filter "*.html" -Recurse -ErrorAction SilentlyContinue |
-                       Sort-Object LastWriteTime -Descending
+                $tests = @(); $total = 0; $passed = 0; $failed = 0; $skipped = 0
 
-        if ($reportFiles.Count -gt 0) {
-            $reportPath = $reportFiles[0].FullName
-            Write-Host "Using report: $reportPath"
-            $htmlBody = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        } else {
-            Write-Warning "No Extent HTML report found - sending fallback email."
-            $htmlBody = "<h2>Test Execution Report</h2><p>No HTML report was generated. Please check pipeline logs.</p><ul><li><b>Build ID:</b> $(Build.BuildId)</li><li><b>Environment:</b> ${{ parameters.environment }}</li><li><b>Groups:</b> $(MAVEN_GROUPS)</li><li><b>Excluded:</b> $(MAVEN_EXCLUDED)</li></ul>"
-        }
+                if ($reportFiles.Count -gt 0) {
+                    $reportPath = $reportFiles[0].FullName
+                    Write-Host "Parsing report: $reportPath"
+                    $raw = Get-Content -Path $reportPath -Raw -Encoding UTF8
 
-        function ConvertTo-EmailList([string]$raw) {
-            return ($raw.Split(',') |
-                    ForEach-Object { $_.Trim() } |
-                    Where-Object   { $_ -ne ''  } |
-                    ForEach-Object { @{ email = $_ } })
-        }
+                    $namePattern   = 'class="test-name"[^>]*>([^<]+)<'
+                    $statusPattern = 'class="badge[^"]*(pass|fail|skip)[^"]*"'
+                    $nameMatches   = [regex]::Matches($raw, $namePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                    $statusMatches = [regex]::Matches($raw, $statusPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                    $total         = $nameMatches.Count
 
-        $toList = ConvertTo-EmailList '${{ parameters.emailTo }}'
-        $ccList = ConvertTo-EmailList '${{ parameters.emailCC }}'
+                    for ($i = 0; $i -lt $nameMatches.Count; $i++) {
+                        $testName = $nameMatches[$i].Groups[1].Value.Trim()
+                        $status   = if ($i -lt $statusMatches.Count) { $statusMatches[$i].Groups[1].Value.ToUpper() } else { "UNKNOWN" }
 
-        if ($toList.Count -eq 0) {
-            Write-Error "No To email addresses provided."
-            exit 1
-        }
+                        if ($testName -match "^tc_([0-9]+)_") {
+                            $jiraId = "ECOM-" + $Matches[1]
+                        } else {
+                            $jiraId = $null
+                        }
 
-        $subject = "[${{ parameters.environment }}] Test Report - Build $(Build.BuildId) | Groups: $(MAVEN_GROUPS)"
+                        switch ($status) {
+                            "PASS" { $passed++  }
+                            "FAIL" { $failed++  }
+                            "SKIP" { $skipped++ }
+                        }
+                        $tests += @{ name = $testName; jiraId = $jiraId; status = $status }
+                    }
+                    Write-Host "Tests: $total total, $passed passed, $failed failed, $skipped skipped"
+                } else {
+                    Write-Warning "No Extent HTML report found."
+                }
 
-        $personalization = @{ to = $toList; subject = $subject }
-        if ($ccList.Count -gt 0) { $personalization['cc'] = $ccList }
+                function Get-Badge([string]$s) {
+                    if     ($s -eq "PASS") { return "<span style='background:#dcfce7;color:#166534;font-size:10px;padding:2px 8px;border-radius:4px;'>PASS</span>" }
+                    elseif ($s -eq "FAIL") { return "<span style='background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;'>FAIL</span>" }
+                    elseif ($s -eq "SKIP") { return "<span style='background:#fef9c3;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;'>SKIP</span>" }
+                    else                   { return "<span style='background:#f3f4f6;color:#6b7280;font-size:10px;padding:2px 8px;border-radius:4px;'>$s</span>" }
+                }
 
-        $payload = @{
-            personalizations = @($personalization)
-            from             = @{ email = '${{ parameters.emailFrom }}'; name = 'Azure Test Automation' }
-            subject          = $subject
-            content          = @(@{ type = 'text/html'; value = $htmlBody })
-        } | ConvertTo-Json -Depth 10
+                $rows = ""; $n = 1
+                foreach ($t in $tests) {
+                    $jiraCell = if ($t.jiraId) {
+                        "<a href='https://yourcompany.atlassian.net/browse/$($t.jiraId)' style='color:#1d4ed8;text-decoration:none;font-size:11px;font-weight:500;'>$($t.jiraId)</a>"
+                    } else {
+                        "<span style='color:#bbb;'>&mdash;</span>"
+                    }
+                    $badge = Get-Badge $t.status
+                    $rows += "<tr style='border-bottom:0.5px solid #f0f0f0;'><td style='padding:8px 14px;color:#999;'>$n</td><td style='padding:8px 8px;'>$jiraCell</td><td style='padding:8px 8px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;'>$($t.name)</td><td style='padding:8px 8px;text-align:center;'>$badge</td></tr>"
+                    $n++
+                }
+                if ($rows -eq "") {
+                    $rows = "<tr><td colspan='4' style='padding:16px;text-align:center;color:#999;'>No test data could be extracted.</td></tr>"
+                }
 
-        $headers = @{
-            'Authorization' = "Bearer $env:SENDGRID_API_KEY"
-            'Content-Type'  = 'application/json'
-        }
+                $buildUrl  = "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+                $timestamp = (Get-Date -Format "dd MMM yyyy, HH:mm")
 
-        try {
-            Invoke-RestMethod -Uri 'https://api.sendgrid.com/v3/mail/send' `
-                              -Method POST -Headers $headers -Body $payload
-            Write-Host "Email sent successfully!"
-            Write-Host "To  : ${{ parameters.emailTo }}"
-            Write-Host "CC  : ${{ parameters.emailCC }}"
-            Write-Host "From: ${{ parameters.emailFrom }}"
-        }
-        catch {
-            $statusCode = $_.Exception.Response.StatusCode.value__
-            $errBody    = $_.ErrorDetails.Message
-            Write-Error "SendGrid failed. Status: $statusCode - $errBody"
-            exit 1
-        }
+                $h  = "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;'>"
+                $h += "<div style='max-width:660px;margin:24px auto;'>"
+                $h += "<div style='background:#1a1a2e;padding:20px 28px;border-radius:6px 6px 0 0;'>"
+                $h += "<table style='width:100%;'><tr>"
+                $h += "<td><div style='color:#fff;font-size:17px;font-weight:600;'>Test Execution Report</div>"
+                $h += "<div style='color:#aaa;font-size:12px;margin-top:4px;'>Build #$(Build.BuildId) &nbsp;|&nbsp; $(PARAM_ENVIRONMENT) &nbsp;|&nbsp; $(PARAM_GROUPS)</div></td>"
+                $h += "<td style='text-align:right;'><span style='font-size:11px;color:#888;'>$timestamp</span></td></tr></table></div>"
+                $h += "<div style='background:#fff;padding:20px 28px;border-left:0.5px solid #ddd;border-right:0.5px solid #ddd;'>"
+                $h += "<table style='width:100%;border-collapse:collapse;'><tr>"
+                $h += "<td style='width:25%;padding-right:10px;'><div style='background:#f9fafb;border:0.5px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center;'><div style='font-size:22px;font-weight:600;color:#222;'>$total</div><div style='font-size:11px;color:#666;'>Total</div></div></td>"
+                $h += "<td style='width:25%;padding-right:10px;'><div style='background:#f0fdf4;border:0.5px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center;'><div style='font-size:22px;font-weight:600;color:#166534;'>$passed</div><div style='font-size:11px;color:#166534;'>Passed</div></div></td>"
+                $h += "<td style='width:25%;padding-right:10px;'><div style='background:#fef2f2;border:0.5px solid #fecaca;border-radius:8px;padding:12px;text-align:center;'><div style='font-size:22px;font-weight:600;color:#991b1b;'>$failed</div><div style='font-size:11px;color:#991b1b;'>Failed</div></div></td>"
+                $h += "<td style='width:25%;'><div style='background:#fffbeb;border:0.5px solid #fde68a;border-radius:8px;padding:12px;text-align:center;'><div style='font-size:22px;font-weight:600;color:#92400e;'>$skipped</div><div style='font-size:11px;color:#92400e;'>Skipped</div></div></td>"
+                $h += "</tr></table></div>"
+                $h += "<div style='background:#fff;padding:0 28px 20px;border-left:0.5px solid #ddd;border-right:0.5px solid #ddd;'>"
+                $h += "<table style='width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;border:0.5px solid #e5e7eb;border-radius:8px;overflow:hidden;'>"
+                $h += "<colgroup><col style='width:36px;'><col style='width:96px;'><col style='width:auto;'><col style='width:64px;'></colgroup>"
+                $h += "<thead><tr style='background:#f1f3f5;border-bottom:0.5px solid #e5e7eb;'>"
+                $h += "<th style='padding:8px 14px;text-align:left;font-weight:500;font-size:11px;color:#666;'>#</th>"
+                $h += "<th style='padding:8px 8px;text-align:left;font-weight:500;font-size:11px;color:#666;'>Jira ID</th>"
+                $h += "<th style='padding:8px 8px;text-align:left;font-weight:500;font-size:11px;color:#666;'>Test name</th>"
+                $h += "<th style='padding:8px 8px;text-align:center;font-weight:500;font-size:11px;color:#666;'>Status</th>"
+                $h += "</tr></thead><tbody>$rows</tbody></table></div>"
+                $h += "<div style='background:#fff;padding:0 28px 24px;border-left:0.5px solid #ddd;border-right:0.5px solid #ddd;'>"
+                $h += "<a href='$buildUrl' style='display:block;background:#1a1a2e;color:#fff;text-align:center;padding:11px;border-radius:6px;font-size:13px;text-decoration:none;font-weight:500;'>View Full Extent Report</a></div>"
+                $h += "<div style='background:#fff;border:0.5px solid #ddd;border-radius:0 0 6px 6px;padding:14px 28px;'>"
+                $h += "<table style='width:100%;'><tr>"
+                $h += "<td style='font-size:11px;color:#aaa;'>Azure Test Automation &middot; Pipeline: $(Build.DefinitionName)</td>"
+                $h += "<td style='font-size:11px;color:#aaa;text-align:right;'>Branch: $(Build.SourceBranchName)</td>"
+                $h += "</tr></table></div></div></body></html>"
+
+                function ConvertTo-EmailList([string]$raw) {
+                    return ($raw.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" } | ForEach-Object { @{ email = $_ } })
+                }
+
+                $toList = ConvertTo-EmailList "$(PARAM_EMAIL_TO)"
+                $ccList = ConvertTo-EmailList "$(PARAM_EMAIL_CC)"
+
+                if ($toList.Count -eq 0) { Write-Error "No To email addresses provided."; exit 1 }
+
+                $subject = "[$(PARAM_ENVIRONMENT)] Test Report - Build $(Build.BuildId) | Groups: $(PARAM_GROUPS)"
+                $personalization = @{ to = $toList; subject = $subject }
+                if ($ccList.Count -gt 0) { $personalization["cc"] = $ccList }
+
+                $payload = @{
+                    personalizations = @($personalization)
+                    from             = @{ email = "$(PARAM_EMAIL_FROM)"; name = "Azure Test Automation" }
+                    subject          = $subject
+                    content          = @(@{ type = "text/html"; value = $h })
+                } | ConvertTo-Json -Depth 10
+
+                $headers = @{ "Authorization" = "Bearer $env:SENDGRID_API_KEY"; "Content-Type" = "application/json" }
+
+                try {
+                    Invoke-RestMethod -Uri "https://api.sendgrid.com/v3/mail/send" -Method POST -Headers $headers -Body $payload
+                    Write-Host "Email sent! To: $(PARAM_EMAIL_TO) | CC: $(PARAM_EMAIL_CC)"
+                }
+                catch {
+                    Write-Error "SendGrid failed. Status: $($_.Exception.Response.StatusCode.value__) - $($_.ErrorDetails.Message)"
+                    exit 1
+                }
