@@ -128,7 +128,7 @@ stages:
             displayName: 'Upload Extent Report'
             condition: always()
             inputs:
-              pathToPublish: '$(System.DefaultWorkingDirectory)/test-output/extent-reports'
+              pathToPublish: '$(System.DefaultWorkingDirectory)/target'
               artifactName: 'extent-report'
 
           - task: PublishBuildArtifacts@1
@@ -165,7 +165,7 @@ stages:
               targetType: inline
               script: |
                 $reportFiles = Get-ChildItem -Path "$(Pipeline.Workspace)/extent-report" `
-                                             -Filter "*.html" -Recurse -ErrorAction SilentlyContinue |
+                                             -Filter "TestReport.html" -Recurse -ErrorAction SilentlyContinue |
                                Sort-Object LastWriteTime -Descending
 
                 $tests = @(); $total = 0; $passed = 0; $failed = 0; $skipped = 0
@@ -288,5 +288,4 @@ stages:
                 catch {
                     Write-Error "SendGrid failed. Status: $($_.Exception.Response.StatusCode.value__) - $($_.ErrorDetails.Message)"
                     exit 1
-                }
                 }

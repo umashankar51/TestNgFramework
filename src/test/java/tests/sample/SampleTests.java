@@ -7,12 +7,12 @@ import tests.BaseTest;
 public class SampleTests extends BaseTest {
 
     @Test(groups = "sample", description = "SAMPLE-001")
-    public void testPassed() {
+    public void tc_001_testPassed() {
         Assert.assertTrue(true, "This test should pass");
     }
 
     @Test(groups = "sample", description = "SAMPLE-002")
-    public void testFailed() {
+    public void tc_002_testFailed() {
         Assert.fail("This test is intentionally failing");
     }
 }

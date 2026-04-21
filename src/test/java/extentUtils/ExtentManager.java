@@ -8,8 +8,8 @@ public class ExtentManager {
 
     public static final ExtentReports extentReports = new ExtentReports();
     public synchronized static ExtentReports createExtentReports() {
-        ExtentSparkReporter reporter = new ExtentSparkReporter("TestReport.html");
-        reporter.config().setReportName("Salesforce Regression Test Report");
+        ExtentSparkReporter reporter = new ExtentSparkReporter("target/TestReport.html");
+        reporter.config().setReportName("eCom Mobile App Regression Test Report");
         extentReports.attachReporter(reporter);
         extentReports.setSystemInfo("environment", ConfigUtils.getTestVariable("testenv"));
         extentReports.setSystemInfo("groups_included", ConfigUtils.getTestVariable("groups"));
