@@ -32,6 +32,11 @@ public class BaseTest {
 
     // ── Suite ─────────────────────────────────────────────────────────────────
 
+    @AfterSuite(alwaysRun = true)
+    public void afterSuite() {
+        ExtentManager.extentReports.flush();
+    }
+
     @BeforeSuite(alwaysRun = true)
     public void beforeSuite() {
         Assert.assertTrue(ConfigUtils.loadTestConfig(),
